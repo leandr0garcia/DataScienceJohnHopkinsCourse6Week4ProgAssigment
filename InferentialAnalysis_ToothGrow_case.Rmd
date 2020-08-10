@@ -1,0 +1,135 @@
+---
+title: "Inference Analysis: the Tooth Growth case"
+output:
+  pdf_document: default
+  html_notebook: default
+author: Leandro GARCIA
+---
+
+
+# OVERVIEW
+
+In this project we will look into the Tooth Growth data set available in R package. This dataset contains the response of 2 groups of guinea pigs in the administration of Vitamin C dosis by 2 different ways. The response is the length of odontoblasts (cells responsible for tooth growth). 60 guinea pigs were tested. Each animal received one of three dose levels of vitamin C (0.5, 1, and 2 mg/day) by one of two delivery methods, orange juice (coded as *OJ*) or ascorbic acid (a form of vitamin C used as a preservative in food items and coded as *VC*).
+
+# About the Dataset
+The Data set contains 60 observations and 3 features.An observation represent a subject for the a specific suplement.
+The features are :
+
+- Len : Length of odontoblasts. This feature will be named as 'Length'
+
+- dose : Vitamin C dose. This feature will be named as 'Dosage'
+
+- Supp: The administrated supplement (Vitamin C). This feature will be named as 'Supplement'
+    
+    - OC: for Orange Juice
+    
+    - VC: Vitamin C in Ascorbic Acid form
+- 
+
+# Basic descriptive statics
+
+``` {r}
+str(ToothGrowth)
+```
+
+``` {r}
+unique(ToothGrowth$dose)
+```
+
+We have then, 2 main group (OC, VC), and 3 sub-groups by dosage (0.5, 1.0, 2.0). We will then proceed to group them and get the basic statistics:
+
+```{r}
+
+data_df <- ToothGrowth
+
+library(dplyr)
+names(data_df) <- c("Length", "Supplement", "Dosage")
+
+summary_df <- group_by(.data = data_df, Supplement, Dosage) %>% summarise_all(.funs = c("Mean" = mean, "SD" = sd, "Var" = var))
+
+summary_df
+```
+
+# CONFIDENCE INTERVALS
+
+``` {r}
+auxiliary_df <- group_by(.data = data_df, Supplement, Dosage) %>% tally()
+auxiliary_df$df <-auxiliary_df$n - 1 
+
+merged_df <- merge(x = summary_df, y = auxiliary_df, by = c("Supplement", "Dosage"))
+merged_df
+
+t <- qt(p = 0.95, df=9, lower.tail = TRUE)
+
+merged_df$CIinf <- merged_df$Mean -  t * merged_df$SD / sqrt(merged_df$n)
+merged_df$CIsup <- merged_df$Mean +  t * merged_df$SD / sqrt(merged_df$n)
+merged_df$Confidence <- 0.90
+
+select(.data=merged_df, Supplement, Dosage, df, Confidence, CIinf, Mean, CIsup)
+
+```
+
+# HYPOTHESIS TESTING
+Our hypothesis is that for doses of 2.0 mg, the supplement type doesn't have a great effect on the tooth growth rate. In other words.
+              $H_{0}: \mu_{OJ, 2.0} = \mu_{VC, 2.0}$
+              
+So, our alternative Hipothesis is :
+              $H_{0}: \mu_{OJ, 2.0} \neq \mu_{VC, 2.0}$
+
+## ASSUMPTIONS
+
+* All the numerical variables presented here are IID (Independent and Identical Distribuited)
+
+* The observations may not come from the same population, so we are assuming: 
+
+  - A difference variance for each group 
+
+  - A subject only belong to a group.
+
+* A t-test is the most suitable as we couldn't confirm that the distribution for each group is normal (see annexes)
+
+
+## t.test() in R
+Parameters: 
+- alternative = "two.sided"
+
+- paired = FALSE
+
+- var.equal = FALSE
+
+- conf.level = 0.95
+
+```{r}
+data_df <- mutate(.data = data_df, "Group" = paste(Supplement, as.character(Dosage), sep="_"))
+t.test(x = data_df$Length[data_df$Group == "OJ_2"], y = data_df$Length[data_df$Group == "VC_2"], alternative = "two.sided", paired = FALSE, var.equal = FALSE, conf.level = 0.95)
+
+
+```
+
+# CONCLUSIONS
+Even when our exploratory analysis (see ANNEXES) gives the sensation that because that the group OJ_2 and VC_2 overlaps, their means are the same, in reality they are not and there is a difference between the 2 means.
+
+
+# ANNEXES
+
+## Basic Exploratory Analysis - Checking the distribution on the 6 groups
+
+``` {r}
+library(ggplot2)
+data_df <- mutate(.data = data_df, "Group" = paste(Supplement, as.character(Dosage), sep="_"))
+ggplot(data = data_df, aes(x = Length, fill = Group)) + geom_density(alpha = 0.2)
+```
+
+With the quantity of subjects, it is not clear if they follow a Normal distribution for the 6 groups, therefore we cannot easily kept the idea that the variables are 'normal distributed'.
+
+## Basic Exploratory Analysis - Checking the distribution on the 2 groups
+
+``` {r}
+ggplot(data = data_df, aes(x = Length, fill = Supplement)) + geom_density(alpha = 0.2)
+
+```
+We can neigher say that the 2 groups are normal distributed.
+
+
+# REFERENCE
+* https://stat.ethz.ch/R-manual/R-patched/library/datasets/html/ToothGrowth.html
